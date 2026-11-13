@@ -19,7 +19,7 @@ async function main() {
   await testLogin("unknown@example.com", "WrongPassword123!");
 
   console.log("TEST 2: Empty password");
-  await testLogin("alice@example.com", "");
+  await testLogin("alex@example.com", "");
 }
 
 main().catch(console.error);
