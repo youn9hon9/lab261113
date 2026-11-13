@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>University Research Portal</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <main class="container">
+    <header>
+      <h1>Research Portal</h1>
+      <p>Secure Research Project Management</p>
+    </header>
+
+    <section id="registerSection" class="hidden">
+      <h2>Create Researcher Account</h2>
+      <form id="registerForm">
+        <label for="registerName">Full name</label>
+        <input id="registerName" required maxlength="100">
+
+        <label for="registerEmail">Email</label>
+        <input id="registerEmail" type="email" required>
+
+        <label for="registerPassword">Password</label>
+        <input id="registerPassword" type="password"
+               minlength="8" maxlength="72" required>
+
+        <button type="submit">Create Account</button>
+      </form>
+      <p>Already registered? <a href="#" id="showLogin">Sign in</a></p>
+    </section>
+
+    <section id="loginSection">
+      <h2>Researcher Sign In</h2>
+      <form id="loginForm">
+        <label for="loginEmail">Email</label>
+        <input id="loginEmail" type="email" required>
+
+        <label for="loginPassword">Password</label>
+        <input id="loginPassword" type="password" required>
+
+        <button type="submit">Sign In</button>
+      </form>
+      <p>New researcher? <a href="#" id="showRegister">Create account</a></p>
+    </section>
+
+    <section id="dashboardSection" class="hidden">
+      <h2>Research Workspace</h2>
+      <p id="welcomeMessage"></p>
+
+      <h3>Create Research Project</h3>
+      <form id="projectForm">
+        <label for="projectTitle">Project title</label>
+        <input id="projectTitle" required maxlength="150">
+
+        <label for="projectDescription">Description</label>
+        <textarea id="projectDescription" maxlength="2000" required></textarea>
+
+        <button type="submit">Create Project</button>
+      </form>
+
+      <h3>My Research Projects</h3>
+      <div id="projectList"></div>
+      <button id="logoutButton" type="button">Sign Out</button>
+    </section>
+
+    <p id="message" role="status"></p>
+  </main>
+
+  <script>
+    const registerSection = document.getElementById("registerSection");
+    const loginSection = document.getElementById("loginSection");
+    const dashboardSection = document.getElementById("dashboardSection");
+    const message = document.getElementById("message");
+
+    function showSection(section) {
+      registerSection.classList.add("hidden");
+      loginSection.classList.add("hidden");
+      dashboardSection.classList.add("hidden");
+      section.classList.remove("hidden");
+      message.textContent = "";
+    }
+
+    function showMessage(text) {
+      message.textContent = text;
+    }
+
+    document.getElementById("showRegister").addEventListener("click", (event) => {
+      event.preventDefault();
+      showSection(registerSection);
+    });
+
+    document.getElementById("showLogin").addEventListener("click", (event) => {
+      event.preventDefault();
+      showSection(loginSection);
+    });
+
+    document.getElementById("registerForm").addEventListener("submit", async (event) => {
+      event.preventDefault();
+
+      const name = document.getElementById("registerName").value;
+      const email = document.getElementById("registerEmail").value;
+      const password = document.getElementById("registerPassword").value;
+
+      try {
+        const response = await fetch("/api/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name, email, password })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+          document.getElementById("registerForm").reset();
+          showSection(loginSection);
+        }
+
+        showMessage(data.message);
+      } catch (error) {
+        showMessage("Registration request failed");
+      }
+    });
+
+    document.getElementById("loginForm").addEventListener("submit", async (event) => {
+      event.preventDefault();
+
+      const email = document.getElementById("loginEmail").value;
+      const password = document.getElementById("loginPassword").value;
+
+      try {
+        const response = await fetch("/api/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          showMessage(data.message);
+          return;
+        }
+
+        document.getElementById("loginForm").reset();
+        await loadDashboard();
+      } catch (error) {
+        showMessage("Login request failed");
+      }
+    });
+
+    async function loadDashboard() {
+      try {
+        const response = await fetch("/api/me");
+
+        if (!response.ok) {
+          showSection(loginSection);
+          return;
+        }
+
+        const data = await response.json();
+
+        document.getElementById("welcomeMessage").textContent =
+          `Welcome, ${data.user.name} (${data.user.role})`;
+
+        showSection(dashboardSection);
+        await loadProjects();
+      } catch (error) {
+        showMessage("Unable to load dashboard");
+      }
+    }
+
+    async function loadProjects() {
+      try {
+        const response = await fetch("/api/projects");
+
+        if (response.status === 401) {
+          showSection(loginSection);
+          return;
+        }
+
+        if (!response.ok) {
+          throw new Error("Project request failed");
+        }
+
+        const data = await response.json();
+        const list = document.getElementById("projectList");
+        list.replaceChildren();
+
+        if (data.projects.length === 0) {
+          list.textContent = "No projects created yet.";
+          return;
+        }
+
+        data.projects.forEach((project) => {
+          const article = document.createElement("article");
+          article.className = "project";
+
+          const title = document.createElement("h4");
+          title.textContent = project.title;
+
+          const description = document.createElement("p");
+          description.textContent = project.description;
+
+          article.append(title, description);
+          list.appendChild(article);
+        });
+      } catch (error) {
+        showMessage("Unable to retrieve projects");
+      }
+    }
+
+    document.getElementById("projectForm").addEventListener("submit", async (event) => {
+      event.preventDefault();
+
+      const title = document.getElementById("projectTitle").value;
+      const description = document.getElementById("projectDescription").value;
+
+      try {
+        const response = await fetch("/api/projects", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title, description })
+        });
+
+        const data = await response.json();
+        showMessage(data.message);
+
+        if (response.ok) {
+          document.getElementById("projectForm").reset();
+          await loadProjects();
+        }
+      } catch (error) {
+        showMessage("Unable to create project");
+      }
+    });
+
+    document.getElementById("logoutButton").addEventListener("click", async () => {
+      try {
+        const response = await fetch("/api/logout", {
+          method: "POST"
+        });
+
+        if (!response.ok) {
+          showMessage("Logout failed");
+          return;
+        }
+
+        showSection(loginSection);
+        showMessage("Signed out successfully");
+      } catch (error) {
+        showMessage("Logout request failed");
+      }
+    });
+
+    loadDashboard();
+  </script>
+</body>
+</html>
