@@ -1,0 +1,5 @@
+node_modules/
+.env
+research.db
+research.db-wal
+research.db-shm
